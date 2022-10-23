@@ -1,4 +1,5 @@
 import os
+import os.path as osp
 import pickle
 import random
 from time import time
@@ -357,9 +358,9 @@ class T5FineTuner(pl.LightningModule):
             print("Begin build tree")
             builder = TreeBuilder()
             if args.trivia:
-                train_file = '../Data_process/trivia_dataset/train.tsv'
-                dev_file = '../Data_process/trivia_dataset/valid_multi.tsv'
-                test_file = '../Data_process/trivia_dataset/test_multi.tsv'
+                train_file = osp.join(args.data_dir, 'trivia_dataset/train.tsv')
+                dev_file = osp.join(args.data_dir, 'trivia_dataset/valid_multi.tsv')
+                test_file = osp.join(args.data_dir, 'trivia_dataset/test_multi.tsv')
                 df_train = pd.read_csv(
                     train_file,
                     encoding='utf-8', names=["query", "queryid", "oldid", "bert_k30_c30_1", "bert_k30_c30_2", "bert_k30_c30_3", "bert_k30_c30_4", "bert_k30_c30_5"],
@@ -375,8 +376,8 @@ class T5FineTuner(pl.LightningModule):
                 df_dev = pd.merge(df_test, df_dev, how='outer')
                 df = pd.merge(df_train, df_dev, how='outer')
             elif args.nq:
-                train_filename = '../Data_process/NQ_dataset/nq_train_doc_newid.tsv'
-                dev_filename = '../Data_process/NQ_dataset/nq_dev_doc_newid.tsv'
+                train_filename = osp.join(args.data_dir, 'NQ_dataset/nq_train_doc_newid.tsv')
+                dev_filename = osp.join(args.data_dir, 'NQ_dataset/nq_dev_doc_newid.tsv')
                 df_train = pd.read_csv(
                     train_filename,
                     names=["query", "queryid", "oldid", "bert_k30_c30_1", "bert_k30_c30_2", "bert_k30_c30_3", "bert_k30_c30_4", "bert_k30_c30_5"],

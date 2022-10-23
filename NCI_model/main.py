@@ -22,7 +22,9 @@ print(torch.__version__)  # 1.10.0+cu113
 print(pl.__version__)  # 1.4.9
 
 logger = None
-YOUR_API_KEY = '' # wandb token, please get yours from wandb portal
+# hailin's wandb token, please get yours from wandb portal
+YOUR_API_KEY = '404a39288cbf3e24896490c7a8bcaf8d124811ee'
+os.environ['WANDB_API_KEY'] = YOUR_API_KEY
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 parent_path = os.path.abspath(os.path.join(dir_path, os.pardir))
@@ -56,6 +58,7 @@ def train(args):
             max_epochs=args.num_train_epochs,
             precision=16 if args.fp_16 else 32,
             amp_level=args.opt_level,
+            amp_backend='apex',
             resume_from_checkpoint=args.resume_from_checkpoint,
             gradient_clip_val=args.max_grad_norm,
             checkpoint_callback=True,
@@ -248,6 +251,7 @@ def calculate(args):
 def parsers_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dir', type=str, default=None)
+    parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--model_name_or_path', type=str, default="t5-")
     parser.add_argument('--tokenizer_name_or_path', type=str, default="t5-")
     parser.add_argument('--freeze_encoder', type=int, default=0, choices=[0, 1])
