@@ -1,3 +1,4 @@
+import datetime
 import os
 import argparse
 import pickle
@@ -13,7 +14,10 @@ from main_models import T5FineTuner, l1_query, decode_token
 from main_utils import set_seed, get_ckpt, dec_2d, numerical_decoder
 from torch.utils.data import DataLoader
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
-from pytorch_lightning.plugins import DDPPlugin
+if pl.__version__ < '1.6':
+    from pytorch_lightning.plugins import DDPPlugin
+else:
+    from pytorch_lightning.strategies import DDPStrategy
 from tqdm import tqdm
 from transformers import T5Tokenizer
 
@@ -40,6 +44,22 @@ def train(args):
             state_dict = state_dict["state_dict"]
         model.load_state_dict(state_dict, strict=False)
 
+    pl_version = pl.__version__
+    if pl_version < '1.6':
+        if args.accelerator is None:
+            args.accelerator = 'ddp'
+        configs_in_version = {
+            'checkpoint_callback': True,
+            'plugins': DDPPlugin(find_unused_parameters=True),
+        }
+    else:
+        if args.accelerator is None:
+            args.accelerator = 'cuda'
+        configs_in_version = {
+            'enable_checkpointing': True,
+            'strategy': DDPStrategy(find_unused_parameters=True, timeout=datetime.timedelta(seconds=3600)),
+        }
+    configs_in_version['accelerator'] = args.accelerator
 
     if args.ckpt_monitor == 'train_loss':
         checkpoint_callback = pl.callbacks.ModelCheckpoint(
@@ -49,7 +69,7 @@ def train(args):
             monitor="avg_train_loss",
             mode="min",
             save_top_k=1,
-            every_n_val_epochs=args.check_val_every_n_epoch,
+            every_n_epochs=args.check_val_every_n_epoch,
         )
         lr_monitor = pl.callbacks.LearningRateMonitor()
         train_params = dict(
@@ -61,13 +81,11 @@ def train(args):
             amp_backend='apex',
             resume_from_checkpoint=args.resume_from_checkpoint,
             gradient_clip_val=args.max_grad_norm,
-            checkpoint_callback=True,
             val_check_interval=args.val_check_interval,
             limit_val_batches=args.limit_val_batches,
             logger=logger,
             callbacks=[lr_monitor, checkpoint_callback],
-            plugins=DDPPlugin(find_unused_parameters=False),
-            accelerator=args.accelerator
+            **configs_in_version,
         )
     elif args.ckpt_monitor == 'recall':
         checkpoint_callback = pl.callbacks.ModelCheckpoint(
@@ -77,7 +95,7 @@ def train(args):
             save_on_train_epoch_end=False,
             mode="max",
             save_top_k=1,
-            every_n_val_epochs=args.check_val_every_n_epoch,
+            every_n_epochs=args.check_val_every_n_epoch,
         )
         lr_monitor = pl.callbacks.LearningRateMonitor()
         train_params = dict(
@@ -86,17 +104,15 @@ def train(args):
             max_epochs=args.num_train_epochs,
             precision=16 if args.fp_16 else 32,
             amp_level=args.opt_level,
+            amp_backend='apex',
             resume_from_checkpoint=args.resume_from_checkpoint,
             gradient_clip_val=args.max_grad_norm,
-            checkpoint_callback=True,
             check_val_every_n_epoch=args.check_val_every_n_epoch,
             val_check_interval=args.val_check_interval,
             limit_val_batches=args.limit_val_batches,
             logger=logger,
             callbacks=[lr_monitor, checkpoint_callback],
-            plugins=DDPPlugin(find_unused_parameters=False),
-            accelerator=args.accelerator,
-            amp_backend='apex',
+            **configs_in_version,
         )
     else:
         NotImplementedError("This monitor is not implemented!")
@@ -274,7 +290,7 @@ def parsers_parser():
     parser.add_argument('--limit_val_batches', type=float, default=1.0)
     parser.add_argument('--softmax', type=int, default=0, choices=[0, 1])
     parser.add_argument('--aug', type=int, default=0, choices=[0, 1])
-    parser.add_argument('--accelerator', type=str, default="ddp")
+    parser.add_argument('--accelerator', type=str, default=None)
     parser.add_argument('--num_layers', type=int, default=12)
     parser.add_argument('--num_decoder_layers', type=int, default=6)
     parser.add_argument('--d_ff', type=int, default=3072)
