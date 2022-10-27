@@ -1,1 +1,3 @@
 __pycache__/
+wandb/
+NCI_model/transformers/tests/
